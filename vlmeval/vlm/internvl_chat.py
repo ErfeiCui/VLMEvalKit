@@ -35,20 +35,21 @@ class InternVLChat(CustomPrompt):
 
     def use_custom_prompt(self, dataset):
         assert dataset is not None
-        if DATASET_TYPE(dataset) == 'multi-choice':
-            return True
-        return False
+        # if DATASET_TYPE(dataset) == 'multi-choice':
+        #     return True
+        return True
 
     def build_prompt(self, line, dataset=None):
+        print(f"DATASET_TYPE: {DATASET_TYPE(dataset)}, dataset: {dataset}")
         assert self.use_custom_prompt(dataset)
         assert dataset is None or isinstance(dataset, str)
         tgt_path = self.dump_image(line, dataset)
-    
+
         question = line['question']
         hint = line['hint'] if ('hint' in line and not pd.isna(line['hint'])) else None
         if hint is not None:
             question = hint + '\n' + question
-    
+
         options = {
             cand: line[cand]
             for cand in string.ascii_uppercase
@@ -57,13 +58,21 @@ class InternVLChat(CustomPrompt):
         for key, item in options.items():
             question += f'\n{key}. {item}'
         prompt = question
-    
-        if len(options):
-            prompt += "\n请直接回答选项字母。" if cn_string(
-                prompt) else "\nAnswer with the option's letter from the given choices directly."
-        else:
-            prompt += "\n请直接回答问题。" if cn_string(prompt) else "\nAnswer the question directly."
-    
+
+        dataset = dataset.lower()
+        if DATASET_TYPE(dataset) == 'multi-choice' or dataset == 'mathvista':
+            if len(options):
+                prompt += "\n请直接回答选项字母。" if cn_string(
+                    prompt) else "\nAnswer with the option's letter from the given choices directly."
+            else:
+                prompt += "\n请直接回答问题。" if cn_string(prompt) else "\nAnswer the question directly."
+        elif DATASET_TYPE(dataset) == 'Y/N':
+            prompt += " Answer the question using a single word or phrase."
+        elif DATASET_TYPE(dataset) == 'VQA':
+            if listinstr(['ocrvqa', 'textvqa', 'chartqa', 'docvqa'], dataset):
+                prompt += " Answer the question using a single word or phrase."
+            elif listinstr(['llavabench', 'mmvet'], dataset):
+                pass
         return {'image': tgt_path, 'text': prompt}
 
     def generate(self, image_path, prompt, dataset=None):
